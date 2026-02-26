@@ -15,6 +15,21 @@ pygame.display.set_caption("Agente Inteligente - Repartidor")
 clock = pygame.time.Clock()
 font = pygame.font.SysFont("Arial",22)
 
+# =========================
+# CARGA DE IMÁGENES
+# =========================
+
+caja_img = pygame.image.load("imgs/caja.png").convert_alpha()
+aceite_img = pygame.image.load("imgs/aceite.png").convert_alpha()
+camioneta_img = pygame.image.load("imgs/camioneta.png").convert_alpha()
+bidon_img = pygame.image.load("imgs/bidon.png").convert_alpha()
+
+# Escalar imágenes al tamaño de celda
+caja_img = pygame.transform.scale(caja_img, (CELL, CELL))
+aceite_img = pygame.transform.scale(aceite_img, (CELL, CELL))
+camioneta_img = pygame.transform.scale(camioneta_img, (CELL, CELL))
+bidon_img = pygame.transform.scale(bidon_img, (CELL, CELL))
+
 WHITE=(255,255,255)
 GRAY=(60,60,60)
 ROAD=(90,90,90)
@@ -328,13 +343,13 @@ while True:
                 pygame.draw.rect(screen, BUILDING, rect)
 
     for d in deliveries:
-        pygame.draw.circle(screen,RED,(d[0]*CELL+20,d[1]*CELL+20),10)
+        screen.blit(caja_img, (d[0]*CELL, d[1]*CELL))
 
     for b in time_blocks:
-        pygame.draw.rect(screen,BLACK,(b[0]*CELL+10,b[1]*CELL+10,20,20))
+        screen.blit(aceite_img, (b[0]*CELL, b[1]*CELL))
 
-    pygame.draw.rect(screen,GREEN,(gas_station[0]*CELL,gas_station[1]*CELL,CELL,CELL))
-    pygame.draw.rect(screen,YELLOW,(agent[0]*CELL+5,agent[1]*CELL+5,30,30))
+    screen.blit(bidon_img, (gas_point[0]*CELL, gas_point[1]*CELL))
+    screen.blit(camioneta_img, (agent[0]*CELL, agent[1]*CELL))
 
     # UI
     txt1=font.render(f"Tiempo: {time_seconds}s",True,WHITE)
