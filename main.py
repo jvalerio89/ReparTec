@@ -1,5 +1,6 @@
 import pygame
 import sys
+import random
 from collections import deque
 
 pygame.init()
@@ -22,40 +23,94 @@ YELLOW=(255,220,0)
 RED=(200,50,50)
 GREEN=(40,200,40)
 BLACK=(0,0,0)
+WATER_BLUE=(0, 191, 255)
 
 # =========================
 # MAPA
 # =========================
+
 grid=[[0]*COLS for _ in range(ROWS)]
 
-for r in [3,7,11,15]:
+#columnas completas
+for r in [1,16]:
     for c in range(COLS):
         grid[r][c]=1
 
-for c in [4,9,14,19,24]:
+#Filas completas
+for c in [0, 9, 17, 21, 29]:
     for r in range(ROWS):
         grid[r][c]=1
 
-# =========================
-# OBJETOS
-# =========================
-deliveries=[
-(4,3),(9,7),(19,11),(4,15),
-(14,3),(24,7),(9,11),(19,15),
-(24,3),(14,15)
-]
+for r in [0,17]:
+    for c in range(COLS):
+        grid[r][c]=0
 
-TOTAL_DELIVERIES=10
-game_over=False
 
-gas_station=(24,15)
+#Tramos
+# Calles Fuente
+for c in range(2, 8): # 5, 2 a 7
+    grid[5][c] = 1
 
-time_blocks=[(14,7),(9,11),(19,3),(4,7)]  # cuadrados negros
+for c in range(2, 8): # 12, 2 a 7
+    grid[12][c] = 1
+    
+for r in range(5,13):
+    grid[r][2] = 1
+
+for r in range(5,13):
+    grid[r][7] = 1
+
+# union rotonda
+for r in range(1,6): # 1-5, 4
+    grid[r][4] = 1
+
+for r in range(1,6): # 1-5, 4
+    grid[r][5] = 1
+
+for r in range(12,17):
+    grid[r][4] = 1
+
+for r in range(12,17):
+    grid[r][5] = 1
+
+for c in range(0,3):
+    grid[7][c] = 1
+for c in range(0,3):
+    grid[10][c] = 1
+
+for c in range(7,10):
+    grid[7][c] = 1
+for c in range(7,10):
+    grid[10][c] = 1
+
+#Boulevard
+for c in range(9,30):
+    grid[7][c] = 1
+for c in range(9,30):
+    grid[10][c] = 1
+
+#Boulevatd Vertical
+for r in range(1,8):
+    grid[r][13] = 1
+for r in range(10,17):
+    grid[r][13] = 1
+
+
+for r in range(1,8):
+    grid[r][25] = 1
+for r in range(10,17):
+    grid[r][25] = 1
+    
+# Fuente
+for r in range(6,12):
+    for c in range(3,7):
+        grid[r][c] = 3
 
 # =========================
 # AGENTE
 # =========================
-agent=[4,15]
+
+agent=[1,16]
 fuel=100
 score=0
 time_seconds=0
@@ -64,35 +119,66 @@ time_seconds=0
 second_timer=0
 fuel_timer=0
 
+#Funcion para aleatorios
+
+def lugares_random(count, existing_locations):
+    locations = []
+    while len(locations) < count:
+        rx = random.randint(0, COLS - 1)
+        ry = random.randint(0, ROWS - 1)
+        
+        if grid[ry][rx] == 1 and (rx, ry) not in locations and (rx, ry) not in existing_locations:
+            if [rx, ry] != agent:
+                locations.append((rx, ry))
+    return locations
+
+# =========================
+# OBJETOS
+# =========================
+
+deliveries=lugares_random(10,[])
+
+TOTAL_DELIVERIES=10
+game_over=False
+
+gas_station=(28,15)
+gas_point=(28,16)
+
+time_blocks=lugares_random(7,deliveries) # aceite
 
 # =========================
 # BFS
 # =========================
-def neighbors(x,y):
-    moves=[]
+def neighbors(x, y):
+    moves = []
+    def add(nx, ny):
+        if 0 <= nx < COLS and 0 <= ny < ROWS and grid[ny][nx] == 1:
+            moves.append((nx, ny))
 
-    def add(nx,ny):
-        if 0<=nx<COLS and 0<=ny<ROWS and grid[ny][nx]==1:
-            moves.append((nx,ny))
+    # --- CALLES HORIZONTALES ---
+    if y == 1: add(x - 1, y)      # Fila 1: Izquierda
+    if y == 16: add(x + 1, y)     # Fila 16: Derecha
+    if y == 5: add(x - 1, y)      # Arriba fuente: Izquierda
+    if y == 12: add(x + 1, y)     # Abajo fuente: Derecha
+    if y == 7: add(x + 1, y)      # Boulevard: Derecha
+    if y == 10: add(x - 1, y)     # Boulevard: Izquierda
 
-    # -------- horizontales --------
-    if y==3 or y==11:  # izquierda -> derecha
-        add(x+1,y)
+    # --- CALLES VERTICALES ---
+    if x in [0, 9, 17]: add(x, y + 1) # Bajan
+    if x in [21, 29]: add(x, y - 1)   # Suben
+    
+    # Lados Fuente
+    if x == 2: add(x, y + 1)          # Baja
+    if x == 7: add(x, y - 1)          # Sube
+    
+    # Cruces de Rotonda
+    if x in [4, 5]:
+        if y <= 7: add(x, y + 1)      # Entran por arriba
+        if y >= 10: add(x, y - 1)     # Entran por abajo
 
-    if y==7 or y==15:  # derecha -> izquierda
-        add(x-1,y)
-
-    # -------- verticales --------
-    if x==4 or x==14 or x==24:  # arriba -> abajo
-        add(x,y+1)
-
-    if x==9 or x==19:  # abajo -> arriba
-        add(x,y-1)
-
-    # ===== INTERSECCIONES (permitir giros) =====
-    if 0<=x<COLS and 0<=y<ROWS and grid[y][x]==1:
-        for dx,dy in [(1,0),(-1,0),(0,1),(0,-1)]:
-            add(x+dx,y+dy)
+    # Boulevards Verticales
+    if x == 13: add(x, y - 1)         # Sube
+    if x == 25: add(x, y + 1)         # Baja
 
     return moves
 
@@ -123,34 +209,36 @@ def bfs(start,goal):
 # =========================
 # DECISION
 # =========================
+
 path=[]
 emergency=False
 
 def choose_target():
-    global path,emergency
+    global path, emergency
 
-    if fuel<20:
-        emergency=True
-        path=bfs(tuple(agent),gas_station)
+    if fuel < 20:
+        emergency = True
+        path = bfs(tuple(agent), gas_point)
         return
 
-    emergency=False
+    emergency = False
 
-    best=None
-    best_len=9999
+    best = None
+    best_len = 9999
 
     for d in deliveries:
-        p=bfs(tuple(agent),d)
-        if len(p)>0 and len(p)<best_len:
-            best_len=len(p)
-            best=d
+        p = bfs(tuple(agent), d)
+        if len(p) > 0 and len(p) < best_len:
+            best_len = len(p)
+            best = d
 
     if best:
-        path=bfs(tuple(agent),best)
+        path = bfs(tuple(agent), best)
 
 # =========================
 # LOOP
 # =========================
+
 move_timer=0
 
 while True:
@@ -161,12 +249,12 @@ while True:
         second_timer+=dt
         fuel_timer+=dt
 
-    # ⏱️ tiempo natural
+    #tiempo
     if second_timer>=1000:
         time_seconds+=1
         second_timer=0
 
-    # ⛽ gasolina natural
+    #gasolina
     if fuel_timer>=2000:
         fuel=max(0,fuel-5)
         fuel_timer=0
@@ -175,6 +263,10 @@ while True:
             emergency=True
             path.clear()
 
+    if tuple(agent) == gas_point:
+                if fuel < 100: # Carga si no está lleno
+                    fuel = 100
+                    emergency = False
 
 
     for e in pygame.event.get():
@@ -211,7 +303,6 @@ while True:
 
             # cuadrados negros
             if tuple(agent) in time_blocks and not emergency:
-                time_blocks.remove(tuple(agent))
                 time_seconds+=2
 
             # gasolinera
@@ -222,14 +313,19 @@ while True:
                     emergency=False
                     path.clear()
 
-
     # ================= DIBUJO =================
+
     screen.fill(BUILDING)
 
     for y in range(ROWS):
         for x in range(COLS):
-            if grid[y][x]==1:
-                pygame.draw.rect(screen,ROAD,(x*CELL,y*CELL,CELL,CELL))
+            rect = (x*CELL, y*CELL, CELL, CELL)
+            if grid[y][x] == 1:
+                pygame.draw.rect(screen, ROAD, rect)
+            elif grid[y][x] == 3: # FUENTE
+                pygame.draw.rect(screen, WATER_BLUE, rect)
+            else:
+                pygame.draw.rect(screen, BUILDING, rect)
 
     for d in deliveries:
         pygame.draw.circle(screen,RED,(d[0]*CELL+20,d[1]*CELL+20),10)
