@@ -10,6 +10,7 @@ import numpy as np
 #===============================
 
 pygame.init()
+pygame.mixer.init()
 # Parametros del juego
 WIDTH, HEIGHT = 1200, 720
 CELL = 40
@@ -48,19 +49,22 @@ total_completed = 0
 total_failed = 0
 current_oil_touches = 0
 state_game = "MENU"
-TOTAL_DELIVERIES=3
+TOTAL_DELIVERIES= 10
 gas_station=(28,15)
 gas_point=(28,16)
 second_timer = 0
 fuel_timer=0
 move_timer = 0
+caja_timer = 0
+caja_frame = 0
+direccion = 0
 # stats del enemigo
 enemy_pos = [29, 1]  # Aparece en una esquina opuesta
 enemy_active = False
 lives = 3
 deliveries_to_spawn_enemy = 3
 death_reason = ""
-
+closed_roads = []
 #===============
 # FUNCIONES
 #===============
@@ -122,7 +126,7 @@ def lugares_random(count, existing_locations, agent):
 def neighbors(x, y):
             moves = []
             def add(nx, ny):
-                if 0 <= nx < COLS and 0 <= ny < ROWS and grid[ny][nx] == 1:
+                if 0 <= nx < COLS and 0 <= ny < ROWS and grid[ny][nx] == 1 and (nx, ny) not in closed_roads:
                     moves.append((nx, ny))
 
             # --- CALLES HORIZONTALES ---
@@ -248,9 +252,14 @@ camioneta_izq = pygame.image.load("imgs/camionetas/camioneta1.png").convert_alph
 camioneta_der = pygame.image.load("imgs/camionetas/camioneta2.png").convert_alpha()
 camioneta_arr = pygame.image.load("imgs/camionetas/camioneta3.png").convert_alpha()
 camioneta_abj = pygame.image.load("imgs/camionetas/camioneta4.png").convert_alpha()
+camionetaB_izq = pygame.image.load("imgs/camionetas/camionetaB1.png").convert_alpha()
+camionetaB_der = pygame.image.load("imgs/camionetas/camionetaB2.png").convert_alpha()
+camionetaB_arr = pygame.image.load("imgs/camionetas/camionetaB3.png").convert_alpha()
+camionetaB_abj = pygame.image.load("imgs/camionetas/camionetaB4.png").convert_alpha()
 
 aceite_img = pygame.image.load("imgs/aceite.png").convert_alpha()
 bidon_img = pygame.image.load("imgs/bidon.png").convert_alpha()
+obstaculo_img = pygame.image.load("imgs/obstaculo.png").convert_alpha()
 calleH_img = pygame.image.load("imgs/calles/calleH.jpg").convert_alpha()
 calleV_img = pygame.image.load("imgs/calles/calleV.jpg").convert_alpha()
 
@@ -312,8 +321,13 @@ camioneta_izq = pygame.transform.scale(camioneta_izq, (CELL, CELL))
 camioneta_der = pygame.transform.scale(camioneta_der, (CELL, CELL))
 camioneta_arr = pygame.transform.scale(camioneta_arr, (CELL, CELL))
 camioneta_abj = pygame.transform.scale(camioneta_abj, (CELL, CELL))
+camionetaB_izq = pygame.transform.scale(camionetaB_izq, (CELL, CELL))
+camionetaB_der = pygame.transform.scale(camionetaB_der, (CELL, CELL))
+camionetaB_arr = pygame.transform.scale(camionetaB_arr, (CELL, CELL))
+camionetaB_abj = pygame.transform.scale(camionetaB_abj, (CELL, CELL))
 aceite_img = pygame.transform.scale(aceite_img, (CELL, CELL))
 bidon_img = pygame.transform.scale(bidon_img, (CELL, CELL))
+obstaculo_img = pygame.transform.scale(obstaculo_img, (CELL, CELL))
 calleH_img = pygame.transform.scale(calleH_img, (CELL, CELL))
 calleV_img = pygame.transform.scale(calleV_img, (CELL, CELL))
 estatua1Arr_img = pygame.transform.scale(estatua1Arr_img, (CELL, CELL))
@@ -323,6 +337,36 @@ estatua2Abj_img = pygame.transform.scale(estatua2Abj_img, (CELL, CELL))
 
 # Cargar memoria al iniciar
 load_memory()
+
+# =========================
+# CARGA DE AUDIO
+# =========================
+
+music_menu = "audio/menu.mp3"
+music_game = "audio/juego.mp3"
+music_enemy = "audio/persecucion.mp3"
+music_win = "audio/ganar.mp3"
+music_lose = "audio/perder.mp3"
+
+current_music = None
+
+# =========================
+# FUNCIONES DE AUDIO
+# =========================
+
+def play_music(track, loop=True):
+    global current_music
+
+    if current_music != track:
+        pygame.mixer.music.stop()
+        pygame.mixer.music.load(track)
+
+        if loop:
+            pygame.mixer.music.play(-1)
+        else:
+            pygame.mixer.music.play()
+
+        current_music = track
 
 # =========================
 # MAPEO
@@ -419,6 +463,8 @@ while True:
             sys.exit()
 
     if state_game == "MENU":
+        play_music(music_menu)
+
         screen.fill(BLACK)
         screen.blit(font.render("Agente Inteligente - Repartidor", True, YELLOW), (450, 200))
         screen.blit(font.render(f"Completados: {total_completed} | Fallidos: {total_failed}", True, WHITE), (450, 300))
@@ -426,16 +472,24 @@ while True:
         
         for e in events:
             if e.type == pygame.KEYDOWN and e.key == pygame.K_SPACE:
+                play_music(music_game)
                 agent, fuel, score, time_seconds, current_oil_touches = [1, 16], 100, 0, 0, 0
                 deliveries = lugares_random(TOTAL_DELIVERIES, [], agent)
                 time_blocks = lugares_random(7, deliveries, agent)
+                closed_roads = lugares_random(2, deliveries + time_blocks, agent)
                 state_game = "PLAYING"
 
     elif state_game == "PLAYING":
+        if not enemy_active:
+            play_music(music_game)
 
         move_timer += dt
         second_timer += dt
         fuel_timer += dt
+        caja_timer += dt
+        if caja_timer >= 250:
+            caja_timer = 0
+            caja_frame = (caja_frame + 1) % 8 
 
         if second_timer >= 1000:
             time_seconds += 1
@@ -465,10 +519,18 @@ while True:
             dist_antes = abs(agent[0]-objetivo[0]) + abs(agent[1]-objetivo[1])
 
             nx, ny = agent[0], agent[1]
-            if action == 0: ny -= 1
-            elif action == 1: ny += 1
-            elif action == 2: nx -= 1
-            elif action == 3: nx += 1
+            if action == 0: 
+                ny -= 1
+                direccion = 1
+            elif action == 1: 
+                ny += 1
+                direccion = 0
+            elif action == 2: 
+                nx -= 1
+                direccion = 3
+            elif action == 3: 
+                nx += 1
+                direccion = 2
 
             reward = -2 # Castigo base leve por paso
 
@@ -499,6 +561,10 @@ while True:
                     reward = 300
                     deliveries.remove(pos_actual)
                     score += 1
+                    if score % 2 == 0 and score < TOTAL_DELIVERIES:
+                        objetos_actuales = deliveries + time_blocks + [gas_point, list(enemy_pos)]
+                        closed_roads = lugares_random(2, objetos_actuales, agent)
+
                 elif pos_actual in time_blocks:
                     reward -= 30
                     current_oil_touches += 1
@@ -509,8 +575,9 @@ while True:
             update_q(state, action, reward, next_state)
 
             # --- LÓGICA DEL ENEMIGO ---
-            if score >= deliveries_to_spawn_enemy:
+            if score >= deliveries_to_spawn_enemy and not enemy_active:
                 enemy_active = True
+                play_music(music_enemy)
 
             if enemy_active:
                 # El enemigo se mueve un poco más lento que el agente para que sea justo
@@ -707,21 +774,35 @@ while True:
         for b in time_blocks:
             screen.blit(aceite_img, (b[0]*CELL, b[1]*CELL))
 
+        # --- DIBUJAR CALLES CERRADAS ---
+        for cr in closed_roads:
+            screen.blit(obstaculo_img, (cr[0]*CELL, cr[1]*CELL))
+
         screen.blit(bidon_img, (gas_point[0]*CELL, gas_point[1]*CELL))
 
-        if direccion == "izquierda":
+        if direccion == 3:
             img = camioneta_izq
-        elif direccion == "derecha":
+        elif direccion == 2:
             img = camioneta_der
-        elif direccion == "arriba":
+        elif direccion == 1:
             img = camioneta_arr
         else:
             img = camioneta_abj
 
         screen.blit(img, (agent[0]*CELL, agent[1]*CELL))
-        
 
-        # Barra superior UI
+        if enemy_active:
+            if direccion == 3:
+                img = camionetaB_izq
+            elif direccion == 2:
+                img = camionetaB_der
+            elif direccion == 1:
+                img = camionetaB_arr
+            else:
+                img = camionetaB_abj
+
+            screen.blit(img, (enemy_pos[0]*CELL, enemy_pos[1]*CELL))
+
         pygame.draw.rect(screen, BLACK, (0, 0, WIDTH, 40))
         info = font.render(f"Vidas: {lives} | Entregas: {score} | Gas: {fuel}% | Aceite: {current_oil_touches} | Tiempo: {time_seconds}s", True, WHITE)
         screen.blit(info, (20, 10))
@@ -731,15 +812,18 @@ while True:
         enemy_active = False
         lives = 3
 
+        if current_music not in [music_win, music_lose]:
+            play_music(music_win if score >= TOTAL_DELIVERIES else music_lose, loop=False)
+
         screen.fill(BLACK)
 
-        if score >= 10:
+        if score >= TOTAL_DELIVERIES:
             res_txt = "¡ENTREGA EXITOSA!"
             color = GREEN
         elif death_reason == "asalto":
             res_txt = "¡TE ASALTARON!"
             color = RED
-        else:
+        elif death_reason == "gas":
             res_txt = "AGENTE SIN GASOLINA"
             color = RED
 
@@ -751,6 +835,8 @@ while True:
         for e in events:
             if e.type == pygame.KEYDOWN and e.key == pygame.K_m:
                 state_game = "MENU"
+                pygame.mixer.music.fadeout(1000)
+                current_music = None
 
 
     pygame.display.flip()
