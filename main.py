@@ -10,6 +10,7 @@ import numpy as np
 #===============================
 
 pygame.init()
+pygame.mixer.init()
 # Parametros del juego
 WIDTH, HEIGHT = 1200, 720
 CELL = 40
@@ -194,27 +195,31 @@ def lugares_random(count, existing_locations, agent):
     return locations
 
 def neighbors(x, y):
-    moves = []
-    def add(nx, ny):
-        if 0 <= nx < COLS and 0 <= ny < ROWS and grid[ny][nx] == 1 and (nx, ny) not in closed_roads:
-            moves.append((nx, ny))
+            moves = []
+            def add(nx, ny):
+                if 0 <= nx < COLS and 0 <= ny < ROWS and grid[ny][nx] == 1 and (nx, ny) not in closed_roads:
+                    moves.append((nx, ny))
 
-    if y == 1: add(x - 1, y)      
-    if y == 16: add(x + 1, y)     
-    if y == 5: add(x - 1, y)      
-    if y == 12: add(x + 1, y)     
-    if y == 7: add(x + 1, y)      
-    if y == 10: add(x - 1, y)     
+            # --- CALLES HORIZONTALES ---
+            if y == 1: add(x - 1, y)      # Fila 1: Izquierda
+            if y == 16: add(x + 1, y)     # Fila 16: Derecha
+            if y == 5: add(x - 1, y)      # Arriba fuente: Izquierda
+            if y == 12: add(x + 1, y)     # Abajo fuente: Derecha
+            if y == 7: add(x + 1, y)      # Boulevard: Derecha
+            if y == 10: add(x - 1, y)     # Boulevard: Izquierda
 
-    if x in [0, 9, 17]: add(x, y + 1) 
-    if x in [21, 29]: add(x, y - 1)   
-    
-    if x == 2: add(x, y + 1)          
-    if x == 7: add(x, y - 1)          
-    
-    if x in [4, 5]:
-        if y <= 7: add(x, y + 1)      
-        if y >= 10: add(x, y - 1)     
+            # --- CALLES VERTICALES ---
+            if x in [0, 9, 17]: add(x, y + 1) # Bajan
+            if x in [21, 29]: add(x, y - 1)   # Suben
+            
+            # Lados Fuente
+            if x == 2: add(x, y + 1)          # Baja
+            if x == 7: add(x, y - 1)          # Sube
+            
+            # Cruces de Rotonda
+            if x in [4, 5]:
+                if y <= 7: add(x, y + 1)      # Entran por arriba
+                if y >= 10: add(x, y - 1)     # Entran por abajo
 
     if x == 13: add(x, y - 1)         
     if x == 25: add(x, y + 1)         
@@ -279,6 +284,10 @@ try:
     camioneta_der = pygame.image.load("imgs/camionetas/camioneta2.png").convert_alpha()
     camioneta_arr = pygame.image.load("imgs/camionetas/camioneta3.png").convert_alpha()
     camioneta_abj = pygame.image.load("imgs/camionetas/camioneta4.png").convert_alpha()
+    camionetaB_izq = pygame.image.load("imgs/camionetas/camionetaB1.png").convert_alpha()
+    camionetaB_der = pygame.image.load("imgs/camionetas/camionetaB2.png").convert_alpha()
+    camionetaB_arr = pygame.image.load("imgs/camionetas/camionetaB3.png").convert_alpha()
+    camionetaB_abj = pygame.image.load("imgs/camionetas/camionetaB4.png").convert_alpha()
     aceite_img = pygame.image.load("imgs/aceite.png").convert_alpha()
     bidon_img = pygame.image.load("imgs/bidon.png").convert_alpha()
     calleH_img = pygame.image.load("imgs/calles/calleH.jpg").convert_alpha()
@@ -329,6 +338,10 @@ try:
     camioneta_der = pygame.transform.scale(camioneta_der, (CELL, CELL))
     camioneta_arr = pygame.transform.scale(camioneta_arr, (CELL, CELL))
     camioneta_abj = pygame.transform.scale(camioneta_abj, (CELL, CELL))
+    camionetaB_izq = pygame.transform.scale(camionetaB_izq, (CELL, CELL))
+    camionetaB_der = pygame.transform.scale(camionetaB_der, (CELL, CELL))
+    camionetaB_arr = pygame.transform.scale(camionetaB_arr, (CELL, CELL))
+    camionetaB_abj = pygame.transform.scale(camionetaB_abj, (CELL, CELL))
     aceite_img = pygame.transform.scale(aceite_img, (CELL, CELL))
     bidon_img = pygame.transform.scale(bidon_img, (CELL, CELL))
     calleH_img = pygame.transform.scale(calleH_img, (CELL, CELL))
@@ -341,6 +354,36 @@ except Exception as e:
     print("Faltan imágenes en las carpetas. Ejecutando texturas por defecto...")
 
 load_memory()
+
+# =========================
+# CARGA DE AUDIO
+# =========================
+
+music_menu = "audio/menu.mp3"
+music_game = "audio/juego.mp3"
+music_enemy = "audio/persecucion.mp3"
+music_win = "audio/ganar.mp3"
+music_lose = "audio/perder.mp3"
+
+current_music = None
+
+# =========================
+# FUNCIONES DE AUDIO
+# =========================
+
+def play_music(track, loop=True):
+    global current_music
+
+    if current_music != track:
+        pygame.mixer.music.stop()
+        pygame.mixer.music.load(track)
+
+        if loop:
+            pygame.mixer.music.play(-1)
+        else:
+            pygame.mixer.music.play()
+
+        current_music = track
 
 # =========================
 # MAPEO
@@ -386,6 +429,8 @@ while True:
             sys.exit()
 
     if state_game == "MENU":
+        play_music(music_menu)
+
         screen.fill(BLACK)
         screen.blit(font.render("Agente Inteligente - Q-Learning + Genético", True, YELLOW), (400, 150))
         screen.blit(font.render(f"Completados: {total_completed} | Fallidos: {total_failed}", True, WHITE), (450, 250))
@@ -402,6 +447,7 @@ while True:
         
         for e in events:
             if e.type == pygame.KEYDOWN and e.key == pygame.K_SPACE:
+                play_music(music_game)
                 agent, fuel, score, time_seconds, current_oil_touches = [1, 16], 100, 0, 0, 0
                 barricada_timer = 0
                 deliveries = lugares_random(TOTAL_DELIVERIES, [], agent)
@@ -412,6 +458,8 @@ while True:
                 state_game = "PLAYING"
 
     elif state_game == "PLAYING":
+        if not enemy_active:
+            play_music(music_game)
 
         move_timer += dt
         second_timer += dt
@@ -456,10 +504,18 @@ while True:
             dist_antes = abs(agent[0]-objetivo[0]) + abs(agent[1]-objetivo[1])
 
             nx, ny = agent[0], agent[1]
-            if action == 0: ny -= 1; direccion = 1
-            elif action == 1: ny += 1; direccion = 0
-            elif action == 2: nx -= 1; direccion = 3
-            elif action == 3: nx += 1; direccion = 2
+            if action == 0: 
+                ny -= 1
+                direccion = 1
+            elif action == 1: 
+                ny += 1
+                direccion = 0
+            elif action == 2: 
+                nx -= 1
+                direccion = 3
+            elif action == 3: 
+                nx += 1
+                direccion = 2
 
             # EL CASTIGO BASE AHORA LO DICTA EL GEN 'C'
             reward = -gen_c 
@@ -489,7 +545,10 @@ while True:
                     reward = 300
                     deliveries.remove(pos_actual)
                     score += 1
-                    
+                    if score % 2 == 0 and score < TOTAL_DELIVERIES:
+                        objetos_actuales = deliveries + time_blocks + [gas_point, list(enemy_pos)]
+                        closed_roads = lugares_random(2, objetos_actuales, agent)
+
                 elif pos_actual in time_blocks:
                     # CASTIGO POR ACEITE DICTADO POR EL GEN 'D'
                     reward -= gen_d 
@@ -500,8 +559,10 @@ while True:
                     
             update_q(state, action, reward, next_state)
 
-            if score >= deliveries_to_spawn_enemy:
+            # --- LÓGICA DEL ENEMIGO ---
+            if score >= deliveries_to_spawn_enemy and not enemy_active:
                 enemy_active = True
+                play_music(music_enemy)
 
             if enemy_active:
                 if pygame.time.get_ticks() % 2 == 0: 
@@ -617,6 +678,12 @@ while True:
 
     elif state_game == "RESULTS":
         
+        enemy_active = False
+        lives = 3
+
+        if current_music not in [music_win, music_lose]:
+            play_music(music_win if score >= TOTAL_DELIVERIES else music_lose, loop=False)
+
         screen.fill(BLACK)
 
         if score >= TOTAL_DELIVERIES:
@@ -638,6 +705,10 @@ while True:
         for e in events:
             if e.type == pygame.KEYDOWN and e.key == pygame.K_m:
                 state_game = "MENU"
+                pygame.mixer.music.fadeout(1000)
+                current_music = None
+
+
             # Nuevo atajo: Seguir entrenando al presionar Espacio
             elif e.type == pygame.KEYDOWN and e.key == pygame.K_SPACE:
                 agent, fuel, score, time_seconds, current_oil_touches = [1, 16], 100, 0, 0, 0
