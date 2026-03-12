@@ -221,10 +221,10 @@ def neighbors(x, y):
                 if y <= 7: add(x, y + 1)      # Entran por arriba
                 if y >= 10: add(x, y - 1)     # Entran por abajo
 
-    if x == 13: add(x, y - 1)         
-    if x == 25: add(x, y + 1)         
+            if x == 13: add(x, y - 1)         
+            if x == 25: add(x, y + 1)         
 
-    return moves
+            return moves
 
 def choose_action(state):
     if random.random() < epsilon:
@@ -290,6 +290,7 @@ try:
     camionetaB_abj = pygame.image.load("imgs/camionetas/camionetaB4.png").convert_alpha()
     aceite_img = pygame.image.load("imgs/aceite.png").convert_alpha()
     bidon_img = pygame.image.load("imgs/bidon.png").convert_alpha()
+    obstaculo_img = pygame.image.load("imgs/obstaculo.png").convert_alpha()
     calleH_img = pygame.image.load("imgs/calles/calleH.jpg").convert_alpha()
     calleV_img = pygame.image.load("imgs/calles/calleV.jpg").convert_alpha()
 
@@ -344,12 +345,14 @@ try:
     camionetaB_abj = pygame.transform.scale(camionetaB_abj, (CELL, CELL))
     aceite_img = pygame.transform.scale(aceite_img, (CELL, CELL))
     bidon_img = pygame.transform.scale(bidon_img, (CELL, CELL))
+    obstaculo_img = pygame.transform.scale(obstaculo_img, (CELL, CELL))
     calleH_img = pygame.transform.scale(calleH_img, (CELL, CELL))
     calleV_img = pygame.transform.scale(calleV_img, (CELL, CELL))
     estatua1Arr_img = pygame.transform.scale(estatua1Arr_img, (CELL, CELL))
     estatua1Abj_img = pygame.transform.scale(estatua1Abj_img, (CELL, CELL))
     estatua2Arr_img = pygame.transform.scale(estatua2Arr_img, (CELL, CELL))
     estatua2Abj_img = pygame.transform.scale(estatua2Abj_img, (CELL, CELL))
+
 except Exception as e:
     print("Faltan imágenes en las carpetas. Ejecutando texturas por defecto...")
 
@@ -650,27 +653,44 @@ while True:
         except: pass
 
         try:
-            for d in deliveries: screen.blit(cajas[caja_frame], (d[0]*CELL, d[1]*CELL))
-            for b in time_blocks: screen.blit(aceite_img, (b[0]*CELL, b[1]*CELL))
+            for d in deliveries: 
+                screen.blit(cajas[caja_frame], (d[0]*CELL, d[1]*CELL))
+            
+            for b in time_blocks: 
+                screen.blit(aceite_img, (b[0]*CELL, b[1]*CELL))
+            
             screen.blit(bidon_img, (gas_point[0]*CELL, gas_point[1]*CELL))
         except: pass
 
         for cr in closed_roads:
-            pygame.draw.rect(screen, (255, 140, 0), (cr[0]*CELL, cr[1]*CELL, CELL, CELL))
-            pygame.draw.line(screen, YELLOW, (cr[0]*CELL, cr[1]*CELL), (cr[0]*CELL + CELL, cr[1]*CELL + CELL), 5)
-            pygame.draw.line(screen, YELLOW, (cr[0]*CELL + CELL, cr[1]*CELL), (cr[0]*CELL, cr[1]*CELL + CELL), 5)
+            screen.blit(obstaculo_img, (cr[0]*CELL, cr[1]*CELL))
 
         try:
-            if direccion == 3: img = camioneta_izq
-            elif direccion == 2: img = camioneta_der
-            elif direccion == 1: img = camioneta_arr
-            else: img = camioneta_abj
+            if direccion == 3: 
+                img = camioneta_izq
+            elif direccion == 2: 
+                img = camioneta_der
+            elif direccion == 1: 
+                img = camioneta_arr
+            else: 
+                img = camioneta_abj
             screen.blit(img, (agent[0]*CELL, agent[1]*CELL))
         except:
             pygame.draw.rect(screen, RED, (agent[0]*CELL, agent[1]*CELL, CELL, CELL))
 
-        if enemy_active:
-            pygame.draw.rect(screen, WHITE, (enemy_pos[0]*CELL, enemy_pos[1]*CELL, CELL, CELL))
+        try:
+            if enemy_active:
+                if direccion == 3: 
+                    img = camionetaB_izq
+                elif direccion == 2: 
+                    img = camionetaB_der
+                elif direccion == 1: 
+                    img = camionetaB_arr
+                else: 
+                    img = camionetaB_abj
+                screen.blit(img, (enemy_pos[0]*CELL, enemy_pos[1]*CELL))
+        except:
+            pygame.draw.rect(screen, RED, (agent[0]*CELL, agent[1]*CELL, CELL, CELL))
 
         pygame.draw.rect(screen, BLACK, (0, 0, WIDTH, 40))
         info = font.render(f"Gen: {generacion_actual} | Indiv: {individuo_actual+1} | Vidas: {lives} | Entregas: {score} | Gas: {fuel}% | Aceite: {current_oil_touches} | Tiempo: {time_seconds}s", True, WHITE)
